@@ -9,7 +9,136 @@
   --color-tech-active: #dcdbd7;
 }
 
+:root {
+  --bg-main: #E4E3E0;
+  --bg-card: #f0efec;
+  --bg-input: #ffffff;
+  --bg-hover: #dcdbd7;
+  --text-primary: #141414;
+  --text-muted: rgba(20, 20, 20, 0.6);
+  --border-primary: #141414;
+  
+  /* SVG grid lines */
+  --svg-grid: #141414;
+  --svg-grid-major: 0.18;
+  --svg-grid-minor: 0.06;
+  --svg-card-bg: #E4E3E0;
+  --svg-chart-bg: #ffffff;
+}
+
+.dark {
+  --bg-main: #141414;
+  --bg-card: #1e1e1d;
+  --bg-input: #292928;
+  --bg-hover: #333332;
+  --text-primary: #E4E3E0;
+  --text-muted: rgba(228, 227, 224, 0.6);
+  --border-primary: #3d3d3b;
+  
+  /* SVG grid lines */
+  --svg-grid: #E4E3E0;
+  --svg-grid-major: 0.22;
+  --svg-grid-minor: 0.08;
+  --svg-card-bg: #1e1e1d;
+  --svg-chart-bg: #141414;
+}
+
 body {
-  background-color: #141414;
-  color: #141414;
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Custom Semantic Utility Classes to map themes */
+.theme-bg-main { background-color: var(--bg-main); transition: background-color 0.25s ease; }
+.theme-bg-card { background-color: var(--bg-card); transition: background-color 0.25s ease; }
+.theme-bg-input { background-color: var(--bg-input); transition: background-color 0.25s ease; }
+.theme-bg-hover { background-color: var(--bg-hover); transition: background-color 0.25s ease, border-color 0.25s ease; }
+.theme-text-primary { color: var(--text-primary); transition: color 0.25s ease; }
+.theme-text-muted { color: var(--text-muted); transition: color 0.25s ease; }
+.theme-border-primary { border-color: var(--border-primary); transition: border-color 0.25s ease; }
+
+@media print {
+  body {
+    background-color: white !important;
+    color: black !important;
+    font-size: 11px !important;
+  }
+  
+  /* Hide interactive, navigation, controls, and form panels */
+  header, 
+  footer, 
+  #parameters-panel, 
+  #quick-calculator, 
+  #generate-ai-report-btn, 
+  #reference-voltage-selector,
+  .preset-buttons, 
+  #auto-tune-apply-btn,
+  #generate-ai-report-btn-container,
+  #tcc-chart-container button,
+  #preset-conflict-btn,
+  #preset-coordinated-btn,
+  button,
+  .no-print {
+    display: none !important;
+  }
+  
+  /* Expand main grid container to full width and single column */
+  main {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+  }
+  
+  #output-panel {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  
+  /* Format log-log chart for print */
+  #tcc-chart-container {
+    background-color: white !important;
+    border: 2px solid #141414 !important;
+    page-break-inside: avoid !important;
+    margin-bottom: 25px !important;
+    width: 100% !important;
+    box-shadow: none !important;
+    padding: 10px !important;
+  }
+  
+  #tcc-svg-chart {
+    border: 1px solid #141414 !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+  
+  /* Format Report and AI outputs */
+  #ai-report-panel {
+    background-color: white !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin-top: 15px !important;
+  }
+
+  /* Force page break for explanation report */
+  #realtime-explanation-box {
+    page-break-before: always !important;
+    border: 1px solid #141414 !important;
+    margin-top: 20px !important;
+  }
+
+  #ai-evaluation-output {
+    max-height: none !important;
+    overflow: visible !important;
+    border: none !important;
+    padding: 0 !important;
+  }
+  
+  h1, h2, h3, h4 {
+    color: black !important;
+  }
 }

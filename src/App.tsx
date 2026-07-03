@@ -31,7 +31,9 @@ import {
   Plus,
   Trash2,
   Check,
-  Copy
+  Copy,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 
@@ -112,6 +114,25 @@ const coordinatedPreset: ProtectionSystemState = {
 };
 
 export default function App() {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('theme');
+      if (saved === 'dark' || saved === 'light') return saved;
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    return 'light';
+  });
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
   const [state, setState] = useState<ProtectionSystemState>(uncoordinatedPreset);
   const [report, setReport] = useState<SelectivityAnalysisReport | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -389,33 +410,33 @@ CREATE POLICY "Permitir eliminacion publica" ON public.coordinaciones FOR DELETE
   };
 
   return (
-    <div className="min-h-screen bg-[#E4E3E0] text-[#141414] font-sans selection:bg-[#141414]/15 selection:text-[#141414]">
+    <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-primary)] font-sans selection:bg-[var(--text-primary)]/15 selection:text-[var(--text-primary)] transition-colors duration-200">
       
       {/* HEADER SECTION */}
-      <header className="border-b border-[#141414] bg-[#E4E3E0] sticky top-0 z-50 px-4 py-4 md:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
+      <header className="border-b border-[var(--border-primary)] bg-[var(--bg-main)] sticky top-0 z-50 px-4 py-4 md:px-8 flex flex-col md:flex-row justify-between items-center gap-4 transition-colors duration-200">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-white rounded-none border border-[#141414] shadow-[1.5px_1.5px_0px_0px_#141414]">
-            <Zap className="w-5 h-5 text-[#141414]" />
+          <div className="p-2 bg-[var(--bg-input)] rounded-none border border-[var(--border-primary)] shadow-[1.5px_1.5px_0px_0px_var(--border-primary)]">
+            <Zap className="w-5 h-5 text-[var(--text-primary)]" />
           </div>
           <div>
-            <h1 className="text-base md:text-lg font-['Georgia'] italic font-bold tracking-tight text-[#141414] flex items-center gap-2">
+            <h1 className="text-base md:text-lg font-['Georgia'] italic font-bold tracking-tight text-[var(--text-primary)] flex items-center gap-2">
               Selectividad y Coordinación de Protecciones
-              <span className="text-3xs bg-[#141414] text-[#E4E3E0] px-1.5 py-0.5 rounded-none font-mono uppercase tracking-widest">IEC / IEEE</span>
+              <span className="text-3xs bg-[var(--text-primary)] text-[var(--bg-main)] px-1.5 py-0.5 rounded-none font-mono uppercase tracking-widest">IEC / IEEE</span>
             </h1>
-            <p className="text-[10px] md:text-xs text-[#141414]/60 font-mono uppercase tracking-wider">Análisis Experto de Selectividad Térmica-Magnética de Sistemas de Potencia</p>
+            <p className="text-[10px] md:text-xs text-[var(--text-muted)] font-mono uppercase tracking-wider">Análisis Experto de Selectividad Térmica-Magnética de Sistemas de Potencia</p>
           </div>
         </div>
 
-        {/* PRESET TRIGGER BUTTONS */}
+        {/* PRESET TRIGGER BUTTONS & THEME TOGGLE */}
         <div className="flex items-center gap-2.5">
-          <span className="text-[10px] text-[#141414]/60 font-mono uppercase tracking-widest mr-1">Casos de Estudio:</span>
+          <span className="text-[10px] text-[var(--text-muted)] font-mono uppercase tracking-widest mr-1">Casos de Estudio:</span>
           <button
             id="preset-conflict-btn"
             onClick={() => loadPreset(uncoordinatedPreset)}
-            className={`px-3 py-1.5 rounded-none text-xs font-mono font-bold uppercase tracking-wider transition-all duration-200 border flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-none text-xs font-mono font-bold uppercase tracking-wider transition-all duration-200 border flex items-center gap-1.5 cursor-pointer ${
               state.upstream.pickup === 30 
-                ? 'bg-[#141414] text-[#E4E3E0] border-[#141414] shadow-[2px_2px_0px_0px_rgba(20,20,20,0.2)]' 
-                : 'bg-white text-[#141414] border-[#141414] hover:bg-[#dcdbd7]'
+                ? 'bg-[var(--text-primary)] text-[var(--bg-main)] border-[var(--border-primary)] shadow-[2px_2px_0px_0px_rgba(20,20,20,0.2)]' 
+                : 'bg-[var(--bg-input)] text-[var(--text-primary)] border-[var(--border-primary)] hover:bg-[var(--bg-hover)]'
             }`}
           >
             <AlertTriangle className="w-3.5 h-3.5 text-[#e11d48]" />
@@ -424,14 +445,22 @@ CREATE POLICY "Permitir eliminacion publica" ON public.coordinaciones FOR DELETE
           <button
             id="preset-coordinated-btn"
             onClick={() => loadPreset(coordinatedPreset)}
-            className={`px-3 py-1.5 rounded-none text-xs font-mono font-bold uppercase tracking-wider transition-all duration-200 border flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-none text-xs font-mono font-bold uppercase tracking-wider transition-all duration-200 border flex items-center gap-1.5 cursor-pointer ${
               state.upstream.pickup === 55 
-                ? 'bg-[#141414] text-[#E4E3E0] border-[#141414] shadow-[2px_2px_0px_0px_rgba(20,20,20,0.2)]' 
-                : 'bg-white text-[#141414] border-[#141414] hover:bg-[#dcdbd7]'
+                ? 'bg-[var(--text-primary)] text-[var(--bg-main)] border-[var(--border-primary)] shadow-[2px_2px_0px_0px_rgba(20,20,20,0.2)]' 
+                : 'bg-[var(--bg-input)] text-[var(--text-primary)] border-[var(--border-primary)] hover:bg-[var(--bg-hover)]'
             }`}
           >
             <CheckCircle className="w-3.5 h-3.5 text-[#059669]" />
             Caso 2: Coordinado
+          </button>
+
+          <button
+            onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
+            className="p-2 bg-[var(--bg-input)] text-[var(--text-primary)] rounded-none border border-[var(--border-primary)] shadow-[2px_2px_0px_0px_var(--border-primary)] active:translate-y-[1px] active:translate-x-[1px] active:shadow-none transition-all cursor-pointer flex items-center justify-center ml-1.5"
+            title={theme === 'light' ? 'Modo Oscuro' : 'Modo Claro'}
+          >
+            {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
           </button>
         </div>
       </header>
@@ -440,24 +469,24 @@ CREATE POLICY "Permitir eliminacion publica" ON public.coordinaciones FOR DELETE
       <main className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
         
         {/* LEFT COLUMN: PARAMETERS CONFIGURATION (5 COLS) */}
-        <section className="lg:col-span-5 bg-[#f0efec] border border-[#141414] rounded-none p-5 md:p-6 flex flex-col gap-6 shadow-[4px_4px_0px_0px_#141414]" id="parameters-panel">
+        <section className="lg:col-span-5 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-none p-5 md:p-6 flex flex-col gap-6 shadow-[4px_4px_0px_0px_var(--border-primary)] transition-colors duration-200" id="parameters-panel">
           <div>
-            <h2 className="text-sm font-['Georgia'] italic font-bold text-[#141414] flex items-center gap-2 mb-1">
-              <Sliders className="w-4.5 h-4.5 text-[#141414]" />
+            <h2 className="text-sm font-['Georgia'] italic font-bold text-[var(--text-primary)] flex items-center gap-2 mb-1">
+              <Sliders className="w-4.5 h-4.5 text-[var(--text-primary)]" />
               Parámetros de Entrada
             </h2>
-            <p className="text-2xs font-mono uppercase tracking-wider text-[#141414]/60">Modifique los diales y calibres para sintonizar el sistema eléctrico.</p>
+            <p className="text-2xs font-mono uppercase tracking-wider text-[var(--text-muted)]">Modifique los diales y calibres para sintonizar el sistema eléctrico.</p>
           </div>
 
           {/* INNER TABS FOR FORM */}
-          <div className="flex border-b border-[#141414] flex-wrap">
+          <div className="flex border-b border-[var(--border-primary)] flex-wrap">
             <button
               id="tab-trafo-btn"
               onClick={() => setActiveTab('trafo')}
-              className={`flex-1 min-w-[80px] py-2 text-3xs sm:text-2xs font-mono uppercase tracking-wider font-bold border-b-2 transition-colors ${
+              className={`flex-1 min-w-[80px] py-2 text-3xs sm:text-2xs font-mono uppercase tracking-wider font-bold border-b-2 transition-colors cursor-pointer ${
                 activeTab === 'trafo' 
-                  ? 'border-[#141414] text-[#141414]' 
-                  : 'border-transparent text-[#141414]/50 hover:text-[#141414]'
+                  ? 'border-[var(--border-primary)] text-[var(--text-primary)]' 
+                  : 'border-transparent text-[var(--text-primary)]/50 hover:text-[var(--text-primary)]'
               }`}
             >
               1. Trafo
@@ -465,10 +494,10 @@ CREATE POLICY "Permitir eliminacion publica" ON public.coordinaciones FOR DELETE
             <button
               id="tab-upstream-btn"
               onClick={() => setActiveTab('upstream')}
-              className={`flex-1 min-w-[80px] py-2 text-3xs sm:text-2xs font-mono uppercase tracking-wider font-bold border-b-2 transition-colors ${
+              className={`flex-1 min-w-[80px] py-2 text-3xs sm:text-2xs font-mono uppercase tracking-wider font-bold border-b-2 transition-colors cursor-pointer ${
                 activeTab === 'upstream' 
-                  ? 'border-[#141414] text-[#141414]' 
-                  : 'border-transparent text-[#141414]/50 hover:text-[#141414]'
+                  ? 'border-[var(--border-primary)] text-[var(--text-primary)]' 
+                  : 'border-transparent text-[var(--text-primary)]/50 hover:text-[var(--text-primary)]'
               }`}
             >
               2. Amontón
@@ -476,10 +505,10 @@ CREATE POLICY "Permitir eliminacion publica" ON public.coordinaciones FOR DELETE
             <button
               id="tab-downstream-btn"
               onClick={() => setActiveTab('downstream')}
-              className={`flex-1 min-w-[80px] py-2 text-3xs sm:text-2xs font-mono uppercase tracking-wider font-bold border-b-2 transition-colors ${
+              className={`flex-1 min-w-[80px] py-2 text-3xs sm:text-2xs font-mono uppercase tracking-wider font-bold border-b-2 transition-colors cursor-pointer ${
                 activeTab === 'downstream' 
-                  ? 'border-[#141414] text-[#141414]' 
-                  : 'border-transparent text-[#141414]/50 hover:text-[#141414]'
+                  ? 'border-[var(--border-primary)] text-[var(--text-primary)]' 
+                  : 'border-transparent text-[var(--text-primary)]/50 hover:text-[var(--text-primary)]'
               }`}
             >
               3. Aval
@@ -487,10 +516,10 @@ CREATE POLICY "Permitir eliminacion publica" ON public.coordinaciones FOR DELETE
             <button
               id="tab-saved-btn"
               onClick={() => setActiveTab('saved')}
-              className={`flex-1 min-w-[80px] py-2 text-3xs sm:text-2xs font-mono uppercase tracking-wider font-bold border-b-2 transition-colors ${
+              className={`flex-1 min-w-[80px] py-2 text-3xs sm:text-2xs font-mono uppercase tracking-wider font-bold border-b-2 transition-colors cursor-pointer ${
                 activeTab === 'saved' 
-                  ? 'border-[#141414] text-[#141414]' 
-                  : 'border-transparent text-[#141414]/50 hover:text-[#141414]'
+                  ? 'border-[var(--border-primary)] text-[var(--text-primary)]' 
+                  : 'border-transparent text-[var(--text-primary)]/50 hover:text-[var(--text-primary)]'
               }`}
             >
               4. Guardados
@@ -691,6 +720,96 @@ CREATE POLICY "Permitir eliminacion publica" ON public.coordinaciones FOR DELETE
                     className="w-full bg-white text-[#141414] border border-[#141414] rounded-none px-3 py-2 text-sm font-mono disabled:opacity-40 focus:bg-[#fbfbfa] focus:outline-none"
                   />
                 </div>
+              </div>
+
+              {/* Dynamic Math Formula Visualizer */}
+              <div className="mt-3.5 bg-white border border-[#141414] p-3 rounded-none text-3xs font-mono space-y-2">
+                <span className="text-[9px] font-extrabold text-[#141414] uppercase tracking-widest block border-b border-[#141414]/10 pb-1">
+                  Ecuación Matemática de la Curva ({state.upstream.curveType.toUpperCase()})
+                </span>
+                
+                {(() => {
+                  let equation = '';
+                  let coeffA = '';
+                  let coeffB = '';
+                  let coeffC = '';
+                  let standard = '';
+                  let curveName = '';
+                  
+                  switch (state.upstream.curveType) {
+                    case 'iec-si':
+                      standard = 'IEC 60255';
+                      curveName = 'Estándar Inversa (SI)';
+                      equation = 't = TMS × (0.14 / (M^0.02 - 1))';
+                      coeffA = '0.14'; coeffB = '0.02'; coeffC = '-';
+                      break;
+                    case 'iec-vi':
+                      standard = 'IEC 60255';
+                      curveName = 'Muy Inversa (VI)';
+                      equation = 't = TMS × (13.5 / (M - 1))';
+                      coeffA = '13.5'; coeffB = '1.00'; coeffC = '-';
+                      break;
+                    case 'iec-ei':
+                      standard = 'IEC 60255';
+                      curveName = 'Extremadamente Inversa (EI)';
+                      equation = 't = TMS × (80 / (M^2 - 1))';
+                      coeffA = '80.0'; coeffB = '2.00'; coeffC = '-';
+                      break;
+                    case 'iec-lti':
+                      standard = 'IEC 60255';
+                      curveName = 'Tiempo Largo Inverso (LTI)';
+                      equation = 't = TMS × (120 / (M - 1))';
+                      coeffA = '120.0'; coeffB = '1.00'; coeffC = '-';
+                      break;
+                    case 'ieee-mi':
+                      standard = 'IEEE C37.112';
+                      curveName = 'Moderadamente Inversa';
+                      equation = 't = TD × (0.0515 / (M^0.02 - 1) + 0.114)';
+                      coeffA = '0.0515'; coeffB = '0.02'; coeffC = '0.114';
+                      break;
+                    case 'ieee-vi':
+                      standard = 'IEEE C37.112';
+                      curveName = 'Muy Inversa';
+                      equation = 't = TD × (19.61 / (M^2 - 1) + 0.491)';
+                      coeffA = '19.61'; coeffB = '2.00'; coeffC = '0.491';
+                      break;
+                    case 'ieee-ei':
+                      standard = 'IEEE C37.112';
+                      curveName = 'Extremadamente Inversa';
+                      equation = 't = TD × (28.2 / (M^2 - 1) + 0.1217)';
+                      coeffA = '28.2'; coeffB = '2.00'; coeffC = '0.1217';
+                      break;
+                  }
+
+                  return (
+                    <div className="space-y-1.5 text-[#141414]">
+                      <div className="flex justify-between text-[8px] text-[#141414]/50 font-mono">
+                        <span>Norma: {standard}</span>
+                        <span>Tipo: {curveName}</span>
+                      </div>
+                      <div className="bg-[#f0efec] p-2 text-center text-xs font-bold font-mono border border-[#141414]/15">
+                        {equation}
+                      </div>
+                      <div className="grid grid-cols-3 gap-1 text-[8px] uppercase tracking-wider text-center font-bold font-mono">
+                        <div className="bg-[#f0efec]/50 p-1 border border-[#141414]/10">
+                          <span>Coef. A</span>
+                          <span className="block text-2xs font-normal mt-0.5">{coeffA}</span>
+                        </div>
+                        <div className="bg-[#f0efec]/50 p-1 border border-[#141414]/10">
+                          <span>Coef. B</span>
+                          <span className="block text-2xs font-normal mt-0.5">{coeffB}</span>
+                        </div>
+                        <div className="bg-[#f0efec]/50 p-1 border border-[#141414]/10">
+                          <span>Coef. C</span>
+                          <span className="block text-2xs font-normal mt-0.5">{coeffC}</span>
+                        </div>
+                      </div>
+                      <div className="text-[7.5px] text-[#141414]/65 leading-tight uppercase font-mono">
+                        * M = I / Is (Multiplo de corriente de arranque).
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )}
@@ -1412,7 +1531,7 @@ CREATE POLICY "Permitir eliminacion publica" ON public.coordinaciones FOR DELETE
             })()}
 
             {/* ACTION FOR GENERATING THE EXPERT IA REPORT */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-t border-[#141414] pt-4 gap-3">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between border-t border-[#141414] pt-4 gap-3">
               <div>
                 <h3 className="text-xs uppercase tracking-widest font-bold text-[#141414] font-mono flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4 text-amber-600" fill="currentColor" />
@@ -1420,15 +1539,24 @@ CREATE POLICY "Permitir eliminacion publica" ON public.coordinaciones FOR DELETE
                 </h3>
                 <p className="text-[11px] font-mono uppercase text-[#141414]/60">Genera un dictamen formal con recomendaciones según IEC/IEEE.</p>
               </div>
-              <button
-                id="generate-ai-report-btn"
-                onClick={generateAiReport}
-                disabled={loading}
-                className="bg-[#141414] text-[#E4E3E0] hover:bg-[#141414]/90 disabled:opacity-50 text-2xs font-mono font-bold uppercase tracking-widest px-4 py-2.5 rounded-none border border-[#141414] shadow-[3px_3px_0px_0px_#141414] active:translate-y-[1px] active:translate-x-[1px] active:shadow-none transition-all flex items-center gap-1.5"
-              >
-                {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
-                {report?.aiEvaluation ? 'Regenerar Informe con IA' : 'Generar Informe con IA'}
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="bg-white hover:bg-[#dcdbd7] text-[#141414] text-2xs font-mono font-bold uppercase tracking-widest px-4 py-2.5 rounded-none border border-[#141414] shadow-[2.5px_2.5px_0px_0px_#141414] active:translate-y-[1px] active:translate-x-[1px] active:shadow-none transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Imprimir / PDF
+                </button>
+                <button
+                  id="generate-ai-report-btn"
+                  onClick={generateAiReport}
+                  disabled={loading}
+                  className="bg-[#141414] text-[#E4E3E0] hover:bg-[#141414]/90 disabled:opacity-50 text-2xs font-mono font-bold uppercase tracking-widest px-4 py-2.5 rounded-none border border-[#141414] shadow-[2.5px_2.5px_0px_0px_#141414] active:translate-y-[1px] active:translate-x-[1px] active:shadow-none transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                  {report?.aiEvaluation ? 'Regenerar con IA' : 'Generar con IA'}
+                </button>
+              </div>
             </div>
 
             {/* AI EVALUATION OUTPUT AREA */}

@@ -181,6 +181,25 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
     transformer.inrushTime >= t_min && 
     transformer.inrushTime <= t_max;
 
+  // 5. ANSI/IEEE C57.109 Damage Points (Thermal: 100% Icc at 2s; Mechanical: 50% Icc at 2s)
+  const ansiThermalCurrent = baseIcc;
+  const ansiMechanicalCurrent = baseIcc * 0.5;
+  const ansiThermalX = getX(ansiThermalCurrent);
+  const ansiMechanicalX = getX(ansiMechanicalCurrent);
+  const ansiY = getY(2.0); // 2 seconds
+
+  const ansiThermalInViewport = 
+    ansiThermalCurrent >= I_min && 
+    ansiThermalCurrent <= I_max && 
+    2.0 >= t_min && 
+    2.0 <= t_max;
+
+  const ansiMechanicalInViewport = 
+    ansiMechanicalCurrent >= I_min && 
+    ansiMechanicalCurrent <= I_max && 
+    2.0 >= t_min && 
+    2.0 <= t_max;
+
   // Handle Mouse Events for coordinate tracking
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement, MouseEvent>) => {
     if (!svgRef.current) return;
@@ -226,27 +245,31 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
   }
 
   return (
-    <div className="relative bg-[#E4E3E0] border border-[#141414] rounded-none p-4 overflow-hidden" id="tcc-chart-container">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 border-b border-[#141414] pb-3">
+    <div className="relative bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-none p-4 overflow-hidden transition-colors duration-200" id="tcc-chart-container">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 border-b border-[var(--border-primary)] pb-3">
         <div>
-          <h3 className="text-sm font-['Georgia'] italic font-bold text-[#141414] flex items-center gap-2">
-            <span className="w-2.5 h-2.5 bg-[#141414] rotate-45"></span>
+          <h3 className="text-sm font-['Georgia'] italic font-bold text-[var(--text-primary)] flex items-center gap-2">
+            <span className="w-2.5 h-2.5 bg-[var(--text-primary)] rotate-45"></span>
             Curvas de Selectividad de Tiempo-Corriente (TCC)
           </h3>
-          <p className="text-[11px] font-mono uppercase tracking-wider text-[#141414]/60 mt-1">Referido a: <span className="font-bold text-[#141414]">{currentUnit}</span></p>
+          <p className="text-[11px] font-mono uppercase tracking-wider text-[var(--text-muted)] mt-1">Referido a: <span className="font-bold text-[var(--text-primary)]">{currentUnit}</span></p>
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-mono uppercase">
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-1 bg-[#2563eb] inline-block"></span>
-            <span className="text-[#141414]">Amontón (Relé V1)</span>
+            <span className="text-[var(--text-primary)]">Amontón (Relé V1)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-1 bg-[#059669] inline-block"></span>
-            <span className="text-[#141414]">Aval (Baja Tensión)</span>
+            <span className="text-[var(--text-primary)]">Aval (Baja Tensión)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-0.5 border-b border-dashed border-[#dc2626] inline-block"></span>
-            <span className="text-[#141414]">Daño Trafo</span>
+            <span className="text-[var(--text-primary)]">Daño Trafo</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-[#dc2626] border border-[var(--border-primary)] inline-block"></span>
+            <span className="text-[var(--text-primary)]">Puntos ANSI</span>
           </div>
         </div>
       </div>
@@ -258,14 +281,14 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
           width={width}
           height={height}
           viewBox={`0 0 ${width} ${height}`}
-          className="mx-auto cursor-crosshair select-none bg-white border border-[#141414]"
+          className="mx-auto cursor-crosshair select-none bg-[var(--svg-chart-bg)] border border-[var(--border-primary)] transition-colors duration-200"
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
         >
           {/* DEFINITIONS FOR DECORATION */}
           <defs>
             <pattern id="dot-grid" width="20" height="20" patternUnits="userSpaceOnUse">
-              <circle cx="2" cy="2" r="1" fill="#141414" fillOpacity="0.06" />
+              <circle cx="2" cy="2" r="1" fill="var(--svg-grid)" fillOpacity="var(--svg-grid-minor)" />
             </pattern>
           </defs>
 
@@ -286,16 +309,16 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
                 y1={paddingTop}
                 x2={x}
                 y2={height - paddingBottom}
-                stroke="#141414"
+                stroke="var(--svg-grid)"
                 strokeWidth="1"
-                strokeOpacity="0.18"
+                strokeOpacity="var(--svg-grid-major)"
               />,
               <text
                 key={`v-lbl-${dec}`}
                 x={x}
                 y={height - paddingBottom + 16}
-                fill="#141414"
-                fillOpacity="0.7"
+                fill="var(--text-primary)"
+                fillOpacity="0.75"
                 fontSize="10"
                 fontFamily="monospace"
                 textAnchor="middle"
@@ -320,9 +343,9 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
                         y1={paddingTop}
                         x2={xMinor}
                         y2={height - paddingBottom}
-                        stroke="#141414"
+                        stroke="var(--svg-grid)"
                         strokeWidth="0.5"
-                        strokeOpacity="0.06"
+                        strokeOpacity="var(--svg-grid-minor)"
                       />
                     );
                   }
@@ -345,16 +368,16 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
                 y1={y}
                 x2={width - paddingRight}
                 y2={y}
-                stroke="#141414"
+                stroke="var(--svg-grid)"
                 strokeWidth="1"
-                strokeOpacity="0.18"
+                strokeOpacity="var(--svg-grid-major)"
               />,
               <text
                 key={`h-lbl-${dec}`}
                 x={paddingLeft - 8}
                 y={y + 4}
-                fill="#141414"
-                fillOpacity="0.7"
+                fill="var(--text-primary)"
+                fillOpacity="0.75"
                 fontSize="10"
                 fontFamily="monospace"
                 textAnchor="end"
@@ -377,9 +400,9 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
                       y1={yMinor}
                       x2={width - paddingRight}
                       y2={yMinor}
-                      stroke="#141414"
+                      stroke="var(--svg-grid)"
                       strokeWidth="0.5"
-                      strokeOpacity="0.06"
+                      strokeOpacity="var(--svg-grid-minor)"
                     />
                   );
                 }
@@ -398,16 +421,16 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
                 y1={paddingTop}
                 x2={getX(baseNominal)}
                 y2={height - paddingBottom}
-                stroke="#141414"
+                stroke="var(--svg-grid)"
                 strokeWidth="1.5"
                 strokeDasharray="4,4"
-                strokeOpacity="0.4"
+                strokeOpacity="0.55"
               />
               <text
                 x={getX(baseNominal) + 4}
                 y={paddingTop + 15}
-                fill="#141414"
-                fillOpacity="0.5"
+                fill="var(--text-primary)"
+                fillOpacity="0.65"
                 fontSize="9"
                 fontFamily="monospace"
               >
@@ -424,7 +447,7 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
                 y1={paddingTop}
                 x2={getX(baseIcc)}
                 y2={height - paddingBottom}
-                stroke="#141414"
+                stroke="var(--svg-grid)"
                 strokeWidth="1.5"
                 strokeDasharray="2,2"
                 strokeOpacity="0.7"
@@ -503,6 +526,54 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
             </g>
           )}
 
+          {/* ANSI/IEEE C57.109 DAMAGE POINTS */}
+          {ansiThermalInViewport && (
+            <g id="tcc-ansi-thermal-point">
+              <circle
+                cx={ansiThermalX}
+                cy={ansiY}
+                r="4.5"
+                fill="#dc2626"
+                stroke="#141414"
+                strokeWidth="1.5"
+              />
+              <text
+                x={ansiThermalX + 8}
+                y={ansiY + 3}
+                fill="#dc2626"
+                fontSize="9"
+                fontFamily="monospace"
+                fontWeight="bold"
+              >
+                ANSI Térmico (2s)
+              </text>
+            </g>
+          )}
+
+          {ansiMechanicalInViewport && (
+            <g id="tcc-ansi-mechanical-point">
+              <circle
+                cx={ansiMechanicalX}
+                cy={ansiY}
+                r="4.5"
+                fill="#b91c1c"
+                stroke="#141414"
+                strokeWidth="1.5"
+              />
+              <text
+                x={ansiMechanicalX - 8}
+                y={ansiY + 3}
+                fill="#b91c1c"
+                fontSize="9"
+                fontFamily="monospace"
+                fontWeight="bold"
+                textAnchor="end"
+              >
+                ANSI Mecánico (2s)
+              </text>
+            </g>
+          )}
+
           {/* CHART OUTER BORDERS */}
           <rect
             x={paddingLeft}
@@ -510,7 +581,7 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
             width={plotWidth}
             height={plotHeight}
             fill="none"
-            stroke="#141414"
+            stroke="var(--border-primary)"
             strokeWidth="1.5"
           />
 
@@ -518,7 +589,7 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
           <text
             x={paddingLeft + plotWidth / 2}
             y={height - 10}
-            fill="#141414"
+            fill="var(--text-primary)"
             fontSize="11"
             fontWeight="bold"
             fontFamily="monospace"
@@ -529,7 +600,7 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
           <text
             x={15}
             y={paddingTop + plotHeight / 2}
-            fill="#141414"
+            fill="var(--text-primary)"
             fontSize="11"
             fontWeight="bold"
             fontFamily="monospace"
@@ -547,12 +618,12 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
                 y1={paddingTop}
                 x2={hoverPos.x}
                 y2={height - paddingBottom}
-                stroke="#141414"
+                stroke="var(--border-primary)"
                 strokeWidth="1"
                 strokeDasharray="3,3"
                 strokeOpacity="0.5"
               />
-              <circle cx={hoverPos.x} cy={hoverPos.y} r="3" fill="#141414" />
+              <circle cx={hoverPos.x} cy={hoverPos.y} r="3" fill="var(--text-primary)" />
               
               {/* Upstream point hover */}
               {tooltipData.upstreamTime !== null && (
@@ -561,7 +632,7 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
                   cy={getY(tooltipData.upstreamTime)} 
                   r="4" 
                   fill="#2563eb" 
-                  stroke="#141414" 
+                  stroke="var(--border-primary)" 
                   strokeWidth="1" 
                 />
               )}
@@ -573,7 +644,7 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
                   cy={getY(tooltipData.downstreamTime)} 
                   r="4" 
                   fill="#059669" 
-                  stroke="#141414" 
+                  stroke="var(--border-primary)" 
                   strokeWidth="1" 
                 />
               )}
@@ -585,7 +656,7 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
                   cy={getY(tooltipData.damageTime)} 
                   r="4" 
                   fill="#dc2626" 
-                  stroke="#141414" 
+                  stroke="var(--border-primary)" 
                   strokeWidth="1" 
                 />
               )}
@@ -597,28 +668,28 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
       {/* FLOATING HOVER LEGEND */}
       {hoverCurrent !== null && tooltipData && (
         <div 
-          className="mt-3 bg-[#f0efec] border border-[#141414] rounded-none p-3 text-2xs md:text-xs grid grid-cols-2 md:grid-cols-4 gap-2 text-[#141414]"
+          className="mt-3 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-none p-3 text-2xs md:text-xs grid grid-cols-2 md:grid-cols-4 gap-2 text-[var(--text-primary)] transition-colors duration-200"
           id="tcc-hover-legend"
         >
           <div>
-            <span className="text-[#141414]/60 block uppercase tracking-wider font-mono text-[9px]">Corriente:</span>
-            <span className="text-[#141414] font-mono font-bold text-sm">{hoverCurrent.toFixed(1)} {refVoltage === 'pu' ? 'pu' : 'A'}</span>
+            <span className="text-[var(--text-muted)] block uppercase tracking-wider font-mono text-[9px]">Corriente:</span>
+            <span className="text-[var(--text-primary)] font-mono font-bold text-sm">{hoverCurrent.toFixed(1)} {refVoltage === 'pu' ? 'pu' : 'A'}</span>
           </div>
           <div>
             <span className="text-[#2563eb] block uppercase tracking-wider font-mono text-[9px]">t Aguas Arriba:</span>
-            <span className="text-[#141414] font-mono font-bold text-sm">
+            <span className="text-[var(--text-primary)] font-mono font-bold text-sm">
               {tooltipData.upstreamTime !== null ? `${tooltipData.upstreamTime.toFixed(3)} s` : '∞ (No dispara)'}
             </span>
           </div>
           <div>
             <span className="text-[#059669] block uppercase tracking-wider font-mono text-[9px]">t Aguas Abajo:</span>
-            <span className="text-[#141414] font-mono font-bold text-sm">
+            <span className="text-[var(--text-primary)] font-mono font-bold text-sm">
               {tooltipData.downstreamTime !== null ? `${tooltipData.downstreamTime.toFixed(3)} s` : '∞ (No dispara)'}
             </span>
           </div>
           <div>
             <span className="text-[#dc2626] block uppercase tracking-wider font-mono text-[9px]">t Daño Trafo:</span>
-            <span className="text-[#141414] font-mono font-bold text-sm">
+            <span className="text-[var(--text-primary)] font-mono font-bold text-sm">
               {tooltipData.damageTime !== null ? `${tooltipData.damageTime.toFixed(1)} s` : 'Seguro'}
             </span>
           </div>
