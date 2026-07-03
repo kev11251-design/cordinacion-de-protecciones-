@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Georgia", serif;
+  --font-mono: "Courier New", Courier, monospace;
+  --color-tech-bg: #E4E3E0;
+  --color-tech-dark: #141414;
+  --color-tech-muted: #f0efec;
+  --color-tech-active: #dcdbd7;
+}
+
+body {
+  background-color: #141414;
+  color: #141414;
+}

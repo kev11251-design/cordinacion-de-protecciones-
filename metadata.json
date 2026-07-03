@@ -1,0 +1,6 @@
+{
+  "name": "Coordinación y Selectividad de Protecciones",
+  "description": "Herramienta experta para el análisis de selectividad térmica y magnética entre protecciones, curva de daño de transformador, inrush y reportes automatizados con IA de acuerdo a las normas IEC 60255 y IEEE.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
