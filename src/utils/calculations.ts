@@ -4,7 +4,8 @@ import {
   DownstreamConfig, 
   RelayCurveType, 
   ProtectionSystemState,
-  SelectivityAnalysisReport
+  SelectivityAnalysisReport,
+  CableConfig
 } from '../types';
 
 // Calculate primary and secondary nominal currents
@@ -178,6 +179,41 @@ export function calculateTransformerDamageTime(
   // Clamp damage curve within standard plotting time range [2s, 100s]
   if (t < 2) t = 2;
   if (t > 100) t = 100;
+
+  return t;
+}
+
+// Calculate Cable damage curve coordinates (I^2 * t = K^2 * S^2)
+export function calculateCableDamageTime(
+  currentSec: number, 
+  cable: CableConfig,
+  transformer: TransformerConfig
+): number | null {
+  if (!cable || !cable.enabled) return null;
+  const { in1 } = calculateNominalCurrents(transformer);
+  const { icc1 } = calculateShortCircuitCurrents(transformer);
+
+  // Convert secondary current to primary current
+  const currentPri = currentSec * (transformer.v2 / transformer.v1);
+
+  // According to IEC 60946, the thermal short circuit limit is plotted from 1.5x nominal up to Icc
+  if (currentPri < 1.5 * in1 || currentPri > 1.2 * icc1) {
+    return null;
+  }
+
+  let K = 143;
+  if (cable.material === 'cu') {
+    K = cable.insulation === 'xlpe' ? 143 : 115;
+  } else {
+    K = cable.insulation === 'xlpe' ? 94 : 76;
+  }
+
+  // Formula: t = (K * S / Ipri)^2
+  let t = Math.pow((K * cable.section) / currentPri, 2);
+
+  // Clamp within plotting range [0.01s, 1000s]
+  if (t < 0.01) t = 0.01;
+  if (t > 1000) return null;
 
   return t;
 }

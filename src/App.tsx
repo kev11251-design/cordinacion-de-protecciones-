@@ -5,7 +5,8 @@ import {
   TransformerConfig, 
   UpstreamConfig, 
   DownstreamConfig, 
-  SelectivityAnalysisReport 
+  SelectivityAnalysisReport,
+  CableConfig
 } from './types';
 import { LogLogChart } from './components/LogLogChart';
 import { 
@@ -72,6 +73,12 @@ const uncoordinatedPreset: ProtectionSystemState = {
       curveFitB: 3.2
     }
   },
+  cable: {
+    enabled: true,
+    material: 'cu',
+    insulation: 'xlpe',
+    section: 50
+  },
   refVoltage: 'v2' // referred to secondary
 };
 
@@ -109,6 +116,12 @@ const coordinatedPreset: ProtectionSystemState = {
       curveFitA: 120,
       curveFitB: 3.2
     }
+  },
+  cable: {
+    enabled: true,
+    material: 'cu',
+    insulation: 'xlpe',
+    section: 50
   },
   refVoltage: 'v2'
 };
@@ -358,12 +371,42 @@ CREATE POLICY "Permitir eliminacion publica" ON public.coordinaciones FOR DELETE
     }));
   };
 
+  const handleCableChange = (field: keyof CableConfig, value: any) => {
+    setState(prev => ({
+      ...prev,
+      cable: {
+        ...prev.cable,
+        [field]: value
+      }
+    }));
+  };
+
   const handleUpstreamChange = (field: keyof UpstreamConfig, value: any) => {
     setState(prev => ({
       ...prev,
       upstream: {
         ...prev.upstream,
         [field]: value
+      }
+    }));
+  };
+
+  const handleUpdateUpstream = (updatedFields: Partial<UpstreamConfig>) => {
+    setState(prev => ({
+      ...prev,
+      upstream: {
+        ...prev.upstream,
+        ...updatedFields
+      }
+    }));
+  };
+
+  const handleUpdateTransformer = (updatedFields: Partial<TransformerConfig>) => {
+    setState(prev => ({
+      ...prev,
+      transformer: {
+        ...prev.transformer,
+        ...updatedFields
       }
     }));
   };
@@ -597,31 +640,97 @@ CREATE POLICY "Permitir eliminacion publica" ON public.coordinaciones FOR DELETE
               </div>
 
               {/* INSTANT CALCULATED VALUES IN SIDEBAR */}
-              <div className="mt-4 bg-[#dcdbd7] border border-[#141414] rounded-none p-3.5 space-y-2">
-                <span className="text-[9px] uppercase tracking-widest font-bold text-[#141414] font-mono block mb-1">Cálculos en Tiempo Real (Trafo):</span>
+              <div className="mt-4 bg-[var(--bg-hover)] border border-[var(--border-primary)] rounded-none p-3.5 space-y-2">
+                <span className="text-[9px] uppercase tracking-widest font-bold text-[var(--text-primary)] font-mono block mb-1">Cálculos en Tiempo Real (Trafo):</span>
                 <div className="grid grid-cols-2 gap-2 text-xs font-mono">
                   <div>
-                    <span className="text-[#141414]/60 block text-[10px]">In Primaria (In1):</span>
-                    <span className="text-[#141414] font-bold block">{in1.toFixed(1)} A</span>
+                    <span className="text-[var(--text-muted)] block text-[10px]">In Primaria (In1):</span>
+                    <span className="text-[var(--text-primary)] font-bold block">{in1.toFixed(1)} A</span>
                   </div>
                   <div>
-                    <span className="text-[#141414]/60 block text-[10px]">In Secundaria (In2):</span>
-                    <span className="text-[#141414] font-bold block">{in2.toFixed(1)} A</span>
+                    <span className="text-[var(--text-muted)] block text-[10px]">In Secundaria (In2):</span>
+                    <span className="text-[var(--text-primary)] font-bold block">{in2.toFixed(1)} A</span>
                   </div>
-                  <div className="border-t border-[#141414] pt-2 col-span-2 grid grid-cols-2">
+                  <div className="border-t border-[var(--border-primary)] pt-2 col-span-2 grid grid-cols-2">
                     <div>
-                      <span className="text-[#141414]/60 block text-[10px]">Icc Primaria (Icc1):</span>
-                      <span className="text-red-700 font-bold block">{icc1.toFixed(0)} A</span>
+                      <span className="text-[var(--text-muted)] block text-[10px]">Icc Primaria (Icc1):</span>
+                      <span className="text-red-600 dark:text-red-400 font-bold block">{icc1.toFixed(0)} A</span>
                     </div>
                     <div>
-                      <span className="text-[#141414]/60 block text-[10px]">Icc Secundaria (Icc2):</span>
-                      <span className="text-red-700 font-bold block">{icc2.toFixed(0)} A</span>
+                      <span className="text-[var(--text-muted)] block text-[10px]">Icc Secundaria (Icc2):</span>
+                      <span className="text-red-600 dark:text-red-400 font-bold block">{icc2.toFixed(0)} A</span>
                     </div>
                   </div>
-                  <div className="border-t border-[#141414] pt-2 col-span-2 text-[9px] text-[#141414]/75 font-mono">
+                  <div className="border-t border-[var(--border-primary)] pt-2 col-span-2 text-[9px] text-[var(--text-muted)] font-mono">
                     Fórmula Trifásica: In = Sn / (√3 × V)
                   </div>
                 </div>
+              </div>
+
+              {/* Cable Configuration Section */}
+              <div className="border-t border-[var(--border-primary)] pt-4 mt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[var(--text-primary)] font-mono font-bold uppercase tracking-wider">Conductor de Alimentación (Cable)</span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={state.cable?.enabled || false}
+                      onChange={(e) => handleCableChange('enabled', e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-gray-300 dark:bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--text-primary)]"></div>
+                  </label>
+                </div>
+
+                {state.cable?.enabled && (
+                  <div className="space-y-3 animate-fade-in text-[var(--text-primary)]">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-extrabold text-[var(--text-primary)] uppercase tracking-widest block mb-1 font-mono">Material</label>
+                        <select
+                          value={state.cable.material}
+                          onChange={(e) => handleCableChange('material', e.target.value)}
+                          className="w-full bg-[var(--bg-input)] text-[var(--text-primary)] border border-[var(--border-primary)] rounded-none px-2 py-1.5 text-xs font-mono focus:bg-[var(--bg-hover)] focus:outline-none"
+                        >
+                          <option value="cu">Cobre (Cu)</option>
+                          <option value="al">Aluminio (Al)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-extrabold text-[var(--text-primary)] uppercase tracking-widest block mb-1 font-mono">Aislamiento</label>
+                        <select
+                          value={state.cable.insulation}
+                          onChange={(e) => handleCableChange('insulation', e.target.value)}
+                          className="w-full bg-[var(--bg-input)] text-[var(--text-primary)] border border-[var(--border-primary)] rounded-none px-2 py-1.5 text-xs font-mono focus:bg-[var(--bg-hover)] focus:outline-none"
+                        >
+                          <option value="xlpe">XLPE (90°C/250°C)</option>
+                          <option value="pvc">PVC (70°C/160°C)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-extrabold text-[var(--text-primary)] uppercase tracking-widest block mb-1 font-mono">Sección Conductor (mm²)</label>
+                      <select
+                        value={state.cable.section}
+                        onChange={(e) => handleCableChange('section', parseInt(e.target.value))}
+                        className="w-full bg-[var(--bg-input)] text-[var(--text-primary)] border border-[var(--border-primary)] rounded-none px-2 py-1.5 text-xs font-mono focus:bg-[var(--bg-hover)] focus:outline-none"
+                      >
+                        <option value="16">16 mm²</option>
+                        <option value="25">25 mm²</option>
+                        <option value="35">35 mm²</option>
+                        <option value="50">50 mm²</option>
+                        <option value="70">70 mm²</option>
+                        <option value="95">95 mm²</option>
+                        <option value="120">120 mm²</option>
+                        <option value="150">150 mm²</option>
+                        <option value="185">185 mm²</option>
+                        <option value="240">240 mm²</option>
+                        <option value="300">300 mm²</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1137,8 +1246,11 @@ CREATE POLICY "Permitir eliminacion publica" ON public.coordinaciones FOR DELETE
         {/* RIGHT COLUMN: GRAPHICS, QUICK CALCULATOR, AND AI REPORT (7 COLS) */}
         <section className="lg:col-span-7 flex flex-col gap-6" id="output-panel">
           
-          {/* TCC CHART CONTAINER */}
-          <LogLogChart state={state} />
+          <LogLogChart 
+            state={state} 
+            onUpdateUpstream={handleUpdateUpstream}
+            onUpdateTransformer={handleUpdateTransformer}
+          />
 
           {/* QUICK COORDINATES CALCULATOR (RULE 1 SATISFACTION) */}
           <div className="bg-white border border-[#141414] rounded-none p-4 md:p-5 shadow-[4px_4px_0px_0px_#141414]" id="quick-calculator">

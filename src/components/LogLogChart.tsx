@@ -1,24 +1,32 @@
 import React, { useState, useRef } from 'react';
-import { ProtectionSystemState } from '../types';
+import { ProtectionSystemState, UpstreamConfig, TransformerConfig } from '../types';
 import {
   calculateNominalCurrents,
   calculateShortCircuitCurrents,
   calculateUpstreamTripTime,
   calculateDownstreamTripTime,
   calculateTransformerDamageTime,
+  calculateCableDamageTime,
   convertSecToPri,
 } from '../utils/calculations';
 
 interface LogLogChartProps {
   state: ProtectionSystemState;
+  onUpdateUpstream?: (updatedFields: Partial<UpstreamConfig>) => void;
+  onUpdateTransformer?: (updatedFields: Partial<TransformerConfig>) => void;
 }
 
-export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
+export const LogLogChart: React.FC<LogLogChartProps> = ({ 
+  state, 
+  onUpdateUpstream, 
+  onUpdateTransformer 
+}) => {
   const [hoverCurrent, setHoverCurrent] = useState<number | null>(null);
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
+  const [activeDrag, setActiveDrag] = useState<'instPickup' | 'pickup' | 'inrush' | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  const { transformer, upstream, downstream, refVoltage } = state;
+  const { transformer, upstream, downstream, cable, refVoltage } = state;
   const { in1, in2 } = calculateNominalCurrents(transformer);
   const { icc1, icc2 } = calculateShortCircuitCurrents(transformer);
 
@@ -79,6 +87,15 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
     const logMax = Math.log10(I_max);
     const logI = logMin + pct * (logMax - logMin);
     return Math.pow(10, logI);
+  };
+
+  const getInverseY = (y: number) => {
+    const pct = 1 - (y - paddingTop) / plotHeight;
+    if (pct < 0 || pct > 1) return null;
+    const logMin = Math.log10(t_min);
+    const logMax = Math.log10(t_max);
+    const logT = logMin + pct * (logMax - logMin);
+    return Math.pow(10, logT);
   };
 
   // Generate decade numbers
@@ -165,6 +182,64 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
     calculateTransformerDamageTime(currSec, transformer)
   );
 
+  // 3b. Cable thermal limit curve path
+  const cablePath = generateCurvePath((currSec) => 
+    calculateCableDamageTime(currSec, cable, transformer)
+  );
+
+  // 3c. Coordination margin and overlap shaded areas calculations
+  const generateShadedAreas = () => {
+    const conflictPoints: { x: number; yDown: number; yUp: number }[] = [];
+    const marginPoints: { x: number; yDown: number; yUp: number }[] = [];
+
+    const steps = 120;
+    const logMin = Math.log10(I_min);
+    const logMax = Math.log10(I_max);
+
+    for (let i = 0; i <= steps; i++) {
+      const logI = logMin + (logMax - logMin) * (i / steps);
+      const I = Math.pow(10, logI);
+
+      let currentSec = I;
+      if (refVoltage === 'v1') {
+        currentSec = I * (transformer.v1 / transformer.v2);
+      } else if (refVoltage === 'pu') {
+        currentSec = I * in2;
+      }
+
+      const tUp = calculateUpstreamTripTime(currentSec, upstream, transformer);
+      const tDown = calculateDownstreamTripTime(currentSec, downstream);
+
+      if (tUp !== null && tDown !== null && tUp >= t_min && tUp <= t_max && tDown >= t_min && tDown <= t_max) {
+        const x = getX(I);
+        const yUp = getY(tUp);
+        const yDown = getY(tDown);
+
+        if (!isNaN(x) && !isNaN(yUp) && !isNaN(yDown)) {
+          if (tUp <= tDown) {
+            conflictPoints.push({ x, yDown, yUp });
+          } else if (tUp - tDown < 0.25) {
+            marginPoints.push({ x, yDown, yUp });
+          }
+        }
+      }
+    }
+
+    const buildPolygonString = (pts: typeof conflictPoints) => {
+      if (pts.length < 2) return '';
+      const forward = pts.map(p => `${p.x.toFixed(1)},${p.yDown.toFixed(1)}`);
+      const backward = [...pts].reverse().map(p => `${p.x.toFixed(1)},${p.yUp.toFixed(1)}`);
+      return [...forward, ...backward].join(' ');
+    };
+
+    return {
+      conflictPolygon: buildPolygonString(conflictPoints),
+      marginPolygon: buildPolygonString(marginPoints)
+    };
+  };
+
+  const { conflictPolygon, marginPolygon } = generateShadedAreas();
+
   // 4. Inrush Point
   const inrushCurrent = in2 * transformer.inrushMult;
   let inrushPlottedCurrent = inrushCurrent;
@@ -200,13 +275,94 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
     2.0 >= t_min && 
     2.0 <= t_max;
 
-  // Handle Mouse Events for coordinate tracking
+  // Draggable handles coordinates in current view units
+  let pickupPlottedCurrent = upstream.pickup;
+  if (refVoltage === 'v2') {
+    pickupPlottedCurrent = upstream.pickup * (transformer.v2 / transformer.v1);
+  } else if (refVoltage === 'pu') {
+    pickupPlottedCurrent = upstream.pickup / in1;
+  }
+  const pickupX = getX(pickupPlottedCurrent);
+
+  let instPlottedCurrent = upstream.instPickup;
+  if (refVoltage === 'v2') {
+    instPlottedCurrent = upstream.instPickup * (transformer.v2 / transformer.v1);
+  } else if (refVoltage === 'pu') {
+    instPlottedCurrent = upstream.instPickup / in1;
+  }
+  const instX = getX(instPlottedCurrent);
+
+  // Handle Mouse Events for coordinate tracking and dragging
+  const handleMouseDown = (e: React.MouseEvent<SVGSVGElement, MouseEvent>) => {
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Check Inrush point (circle)
+    if (inrushInViewport && onUpdateTransformer) {
+      const distInrush = Math.sqrt(Math.pow(x - inrushX, 2) + Math.pow(y - inrushY, 2));
+      if (distInrush < 14) {
+        setActiveDrag('inrush');
+        return;
+      }
+    }
+
+    // Check Instantaneous Line (vertical line)
+    if (onUpdateUpstream && upstream.enabled) {
+      if (Math.abs(x - instX) < 12) {
+        setActiveDrag('instPickup');
+        return;
+      }
+    }
+
+    // Check Thermal Pickup Line (vertical line at knee)
+    if (onUpdateUpstream && upstream.enabled) {
+      if (Math.abs(x - pickupX) < 12) {
+        setActiveDrag('pickup');
+        return;
+      }
+    }
+  };
+
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement, MouseEvent>) => {
     if (!svgRef.current) return;
     const rect = svgRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    if (activeDrag) {
+      const currentVal = getInverseX(x);
+      const timeVal = getInverseY(y);
+
+      if (currentVal !== null) {
+        // Convert the currentVal to primary Amperes for state updates
+        let primaryAmps = currentVal;
+        if (refVoltage === 'v2') {
+          primaryAmps = currentVal * (transformer.v1 / transformer.v2);
+        } else if (refVoltage === 'pu') {
+          primaryAmps = currentVal * in1;
+        }
+
+        if (activeDrag === 'instPickup' && onUpdateUpstream) {
+          const newInst = Math.max(Math.round(primaryAmps), upstream.pickup + 10);
+          onUpdateUpstream({ instPickup: newInst });
+        } else if (activeDrag === 'pickup' && onUpdateUpstream) {
+          const newPickup = Math.min(Math.max(Math.round(primaryAmps * 10) / 10, 0.5), upstream.instPickup - 10);
+          onUpdateUpstream({ pickup: newPickup });
+        } else if (activeDrag === 'inrush' && onUpdateTransformer) {
+          const newMult = Math.min(Math.max(Math.round((primaryAmps / in1) * 10) / 10, 2), 25);
+          let newTime = transformer.inrushTime;
+          if (timeVal !== null) {
+            newTime = Math.min(Math.max(Math.round(timeVal * 100) / 100, 0.01), 2.0);
+          }
+          onUpdateTransformer({ inrushMult: newMult, inrushTime: newTime });
+        }
+      }
+      return; // Do not trigger tooltip while dragging
+    }
+
+    // Default hover tracking
     const currentVal = getInverseX(x);
     if (currentVal !== null) {
       setHoverCurrent(currentVal);
@@ -217,7 +373,12 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
     }
   };
 
+  const handleMouseUp = () => {
+    setActiveDrag(null);
+  };
+
   const handleMouseLeave = () => {
+    setActiveDrag(null);
     setHoverCurrent(null);
     setHoverPos(null);
   };
@@ -235,12 +396,14 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
     const tUp = calculateUpstreamTripTime(currentSec, upstream, transformer);
     const tDown = calculateDownstreamTripTime(currentSec, downstream);
     const tDamage = calculateTransformerDamageTime(currentSec, transformer);
+    const tCable = calculateCableDamageTime(currentSec, cable, transformer);
 
     tooltipData = {
       current: hoverCurrent,
       upstreamTime: tUp,
       downstreamTime: tDown,
       damageTime: tDamage,
+      cableTime: tCable,
     };
   }
 
@@ -271,6 +434,12 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
             <span className="w-2 h-2 rounded-full bg-[#dc2626] border border-[var(--border-primary)] inline-block"></span>
             <span className="text-[var(--text-primary)]">Puntos ANSI</span>
           </div>
+          {cable?.enabled && (
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-0.5 border-b border-dashed border-[#d946ef] inline-block"></span>
+              <span className="text-[var(--text-primary)]">Límite Cable</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -282,7 +451,9 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
           height={height}
           viewBox={`0 0 ${width} ${height}`}
           className="mx-auto cursor-crosshair select-none bg-[var(--svg-chart-bg)] border border-[var(--border-primary)] transition-colors duration-200"
+          onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseLeave}
         >
           {/* DEFINITIONS FOR DECORATION */}
@@ -467,6 +638,27 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
             </g>
           )}
 
+          {/* SHADED AREAS FOR COORDINATION FAILURE OR WARNING */}
+          {marginPolygon && (
+            <polygon
+              id="tcc-margin-warning-zone"
+              points={marginPolygon}
+              fill="rgba(249, 115, 22, 0.15)"
+              stroke="rgba(249, 115, 22, 0.4)"
+              strokeWidth="1.2"
+              strokeDasharray="2,2"
+            />
+          )}
+          {conflictPolygon && (
+            <polygon
+              id="tcc-conflict-zone"
+              points={conflictPolygon}
+              fill="rgba(239, 68, 68, 0.18)"
+              stroke="rgba(239, 68, 68, 0.5)"
+              strokeWidth="1.5"
+            />
+          )}
+
           {/* CURVES PATHS PLOTTING */}
           {/* Downstream Curve (Green) */}
           {downstreamPath && (
@@ -499,6 +691,18 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
               stroke="#dc2626"
               strokeWidth="2"
               strokeDasharray="6,4"
+            />
+          )}
+
+          {/* Cable Thermal Damage Curve (Fuchsia/Magenta) */}
+          {cablePath && cable?.enabled && (
+            <path
+              id="tcc-cable-damage-curve"
+              d={cablePath}
+              fill="none"
+              stroke="#d946ef"
+              strokeWidth="2"
+              strokeDasharray="8,3"
             />
           )}
 
@@ -660,7 +864,94 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
                   strokeWidth="1" 
                 />
               )}
+
+              {/* Cable point hover */}
+              {tooltipData.cableTime !== null && cable?.enabled && (
+                <circle 
+                  cx={hoverPos.x} 
+                  cy={getY(tooltipData.cableTime)} 
+                  r="4" 
+                  fill="#d946ef" 
+                  stroke="var(--border-primary)" 
+                  strokeWidth="1" 
+                />
+              )}
             </g>
+          )}
+
+          {/* DRAGGABLE HANDLES VISUAL GUIDES */}
+          {upstream.enabled && onUpdateUpstream && (
+            <g id="tcc-draggable-handles-guides">
+              {/* Thermal Pickup ($Is$) guide */}
+              <circle
+                cx={pickupX}
+                cy={paddingTop + plotHeight * 0.4}
+                r="6"
+                fill="#2563eb"
+                stroke="var(--svg-chart-bg)"
+                strokeWidth="1.5"
+                className="cursor-col-resize"
+              />
+              <path
+                d={`M ${pickupX - 4} ${paddingTop + plotHeight * 0.4} L ${pickupX + 4} ${paddingTop + plotHeight * 0.4} M ${pickupX - 4} ${paddingTop + plotHeight * 0.4} L ${pickupX - 2} ${paddingTop + plotHeight * 0.4 - 2} M ${pickupX - 4} ${paddingTop + plotHeight * 0.4} L ${pickupX - 2} ${paddingTop + plotHeight * 0.4 + 2} M ${pickupX + 4} ${paddingTop + plotHeight * 0.4} L ${pickupX + 2} ${paddingTop + plotHeight * 0.4 - 2} M ${pickupX + 4} ${paddingTop + plotHeight * 0.4} L ${pickupX + 2} ${paddingTop + plotHeight * 0.4 + 2}`}
+                stroke="white"
+                strokeWidth="1"
+              />
+
+              {/* Instantaneous ($I>>$) guide */}
+              <circle
+                cx={instX}
+                cy={paddingTop + plotHeight * 0.6}
+                r="6"
+                fill="#1d4ed8"
+                stroke="var(--svg-chart-bg)"
+                strokeWidth="1.5"
+                className="cursor-col-resize"
+              />
+              <path
+                d={`M ${instX - 4} ${paddingTop + plotHeight * 0.6} L ${instX + 4} ${paddingTop + plotHeight * 0.6} M ${instX - 4} ${paddingTop + plotHeight * 0.6} L ${instX - 2} ${paddingTop + plotHeight * 0.6 - 2} M ${instX - 4} ${paddingTop + plotHeight * 0.6} L ${instX - 2} ${paddingTop + plotHeight * 0.6 + 2} M ${instX + 4} ${paddingTop + plotHeight * 0.6} L ${instX + 2} ${paddingTop + plotHeight * 0.6 - 2} M ${instX + 4} ${paddingTop + plotHeight * 0.6} L ${instX + 2} ${paddingTop + plotHeight * 0.6 + 2}`}
+                stroke="white"
+                strokeWidth="1"
+              />
+            </g>
+          )}
+
+          {/* DRAGGABLE HITBOXES FOR PERFECT TOUCH/CLICK UX */}
+          {upstream.enabled && onUpdateUpstream && (
+            <>
+              {/* Pickup Line Hitbox */}
+              <line
+                x1={pickupX}
+                y1={paddingTop}
+                x2={pickupX}
+                y2={height - paddingBottom}
+                stroke="transparent"
+                strokeWidth="14"
+                className="cursor-col-resize"
+                style={{ pointerEvents: 'stroke' }}
+              />
+              {/* Inst Line Hitbox */}
+              <line
+                x1={instX}
+                y1={paddingTop}
+                x2={instX}
+                y2={height - paddingBottom}
+                stroke="transparent"
+                strokeWidth="14"
+                className="cursor-col-resize"
+                style={{ pointerEvents: 'stroke' }}
+              />
+            </>
+          )}
+          {inrushInViewport && onUpdateTransformer && (
+            <circle
+              cx={inrushX}
+              cy={inrushY}
+              r="14"
+              fill="transparent"
+              className="cursor-move"
+              style={{ pointerEvents: 'fill' }}
+            />
           )}
         </svg>
       </div>
@@ -668,7 +959,7 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
       {/* FLOATING HOVER LEGEND */}
       {hoverCurrent !== null && tooltipData && (
         <div 
-          className="mt-3 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-none p-3 text-2xs md:text-xs grid grid-cols-2 md:grid-cols-4 gap-2 text-[var(--text-primary)] transition-colors duration-200"
+          className={`mt-3 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-none p-3 text-2xs md:text-xs grid grid-cols-2 ${cable?.enabled ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-2 text-[var(--text-primary)] transition-colors duration-200`}
           id="tcc-hover-legend"
         >
           <div>
@@ -693,6 +984,14 @@ export const LogLogChart: React.FC<LogLogChartProps> = ({ state }) => {
               {tooltipData.damageTime !== null ? `${tooltipData.damageTime.toFixed(1)} s` : 'Seguro'}
             </span>
           </div>
+          {cable?.enabled && (
+            <div>
+              <span className="text-[#d946ef] block uppercase tracking-wider font-mono text-[9px]">t Límite Cable:</span>
+              <span className="text-[var(--text-primary)] font-mono font-bold text-sm">
+                {tooltipData.cableTime !== null ? `${tooltipData.cableTime.toFixed(1)} s` : 'Seguro'}
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>

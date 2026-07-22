@@ -49,10 +49,18 @@ export interface DownstreamConfig {
   fuse: FuseConfig;
 }
 
+export interface CableConfig {
+  enabled: boolean;
+  material: 'cu' | 'al';
+  insulation: 'xlpe' | 'pvc';
+  section: number; // mm2
+}
+
 export interface ProtectionSystemState {
   transformer: TransformerConfig;
   upstream: UpstreamConfig;
   downstream: DownstreamConfig;
+  cable: CableConfig;
   refVoltage: 'v1' | 'v2' | 'pu';
 }
 
